@@ -1,0 +1,174 @@
+---
+title: "Forecasting the Dengue Cases of Region XI using the SARIMA Modeling Approach"
+author: "Nathan Alviola, Glendale Arawiran, and Marie Villanueva"
+output: pdf_document
+geometry: "a4paper, margin=1in"
+mainfont: "Times New Roman"
+fontsize: 12pt
+---
+
+## INTRODUCTION
+
+This study is a showcase of the analysis and the step-by-step process of the forecast of dengue cases in Region XI - Davao Region with the use of the appropriate SARIMA Modeling approach to be determined. It aims to understand the fluctuations of dengue cases of the region and consider the possible factors that give rise or fall to the cases (e.g. weather). By analyzing the behavior of the forecasted data, the stakeholders are able to control, strategize, enact on the interventions in the prevention during dengue outbreaks. 
+
+
+## BACKGROUND OF THE STUDY
+
+Dengue is a viral infection that is transmitted through a mosquito infected by the dengue virus (DENV). Since Philippines is a tropical country, during rainy seasons, accumulation of rainwater in areas that capture water is one of the reasons why the viral infection spreads and infects several individuals. The Davao Region has periodically seen dengue outbreaks of different levels over the years. Dengue cases typically rise during the rainy season as stagnant water builds up in containers, tires, and other items, providing mosquitoes with ideal breeding grounds. All ages are affected by the illness, although small children and adults are especially vulnerable to severe dengue. With the use of forecasting techniques in predicting the future values of the dengue cases, the authors aim in analyzing the dengue cases of Region XI in enabling awareness, prevention, and interventions of the viral infection to both the medical and public community in controlling the number of cases through response and action and create strategies and plans especially to the months that experience outbreaks of the infection. 
+
+
+## DATA GATHERING PROCEDURE
+
+To start the analysis and forecast of dengue cases, the authors obtained their data from Kaggle which was also obtained from the Department of Health (DOH) in the Philippines. The provided data contains the dengue cases of the Philippines and the number of deaths monthly from January 2016 to December 2020. The authors focused on the dengue cases of Davao Region and did not include the number of deaths per month. A spreadsheet of the data was downloaded and only the cases of Region XI were utlized in this study.
+
+
+## DATA TECHNIQUES
+```{r include=FALSE}
+library(ggplot2)  
+library(stlplus)  
+library(forecast)
+library(urca)
+library(tseries)
+library(gridExtra)
+library(kableExtra)
+data <- data.frame(
+  Dengue_Cases = c(790, 711, 564, 557, 628, 1015, 2330, 2063, 1010, 1035, 749, 685, 847, 479, 304, 253, 233, 241, 411, 316, 153, 58, 94, 278, 234, 205, 191, 223, 228, 477, 783, 876, 792, 609, 742, 956, 627, 841, 806, 339, 257, 584, 1115, 1284, 1141, 534, 437, 501, 220, 312, 352, 80, 70, 51, 126, 185, 146, 113, 154, 127)
+)
+dengue_cases <- ts(data$Dengue_Cases, start = 2016, frequency = 12)
+```
+
+### Data Preprocessing
+
+The data was obtained in Kaggle referencing the data from the Department of Health statistics. The authors decided to apply a logarithmic transformation to the data to stabilize the variance since the data was not distributed normally and to help reduce the skewness of the data.
+```{r include=FALSE}
+dengue_caseslog <- log(dengue_cases)
+```
+
+### Feature Construction
+
+Now that logarithmic manipulation is applied, the authors now begin the first step in forecasting. They first plotted their data to observe the patterns of our data set. In the plot, the researchers observe seasonality in the middle of the years provided. 
+```{r,fig.width=5, fig.height=2.5, fig.align='center', echo=FALSE}
+plot(dengue_caseslog, main = "Dengue Cases Time Series", xlab = "Time", ylab = "Dengue Cases")
+```
+
+### Feature Selection and Transformation
+
+#### Decomposing the data
+```{r include=FALSE}
+denglog_stl = stlplus(dengue_caseslog, s.window = "period") 
+```
+```{r, fig.width=5, fig.height=2.7, fig.align='center', echo=FALSE}
+plot(denglog_stl)
+```
+The authors included a time series decomposition with the values, where the presence of seasonality was observed and indicated a non-stationary behavior. To establish a stationary behavior, they decided to difference the data.
+
+#### Differencing
+
+```{r include=FALSE}
+differenced_cases <- diff(dengue_caseslog, differences = 1)
+```
+
+Differencing is done when the data set is confirmed to be non-stationary. The plot shows this behavior which required the authors to do differencing. 
+
+Another way the authors used in confirming the stationary status was through an ADF test. After implementing the test, the outcome of the p-value results to **(0.5919)**, which is higher compared to the p-value *(0.05)*, confirming its non-stationary status. Hence, implementing differencing was necessary to remove the non-stationary behavior.
+
+After differencing the logged data and implementing another ADF Test, they obtain the p-value **(0.01)**, lower compared to p-value *(0.05)*, now confirming it stationary status. Since it was differenced once, our value of **D = 1** corresponding to the seasonal parameters of the model in SARIMA(p,d,q)(P,D,Q)[12] since our model has seasonality present. 
+
+### Model Training, Comparison, and Optimization
+
+#### SARIMA Modeling
+
+To determine the appropriate SARIMA modeling for differenced logged data, we will use different SARIMA values to determine the best model for our data. 
+
+First we display both the ACF and PACF plots to determine the values of p and q in SARIMA(p,d,q)(P,D,Q)[12]
+```{r, fig.width=5, fig.height=1.7, fig.align='center', echo=FALSE}
+acfplot1=ggAcf(differenced_cases) + ggtitle("ACF Plot")
+acfplot2=ggPacf(differenced_cases) + ggtitle("PACF Plot")
+grid.arrange(acfplot1,acfplot2,ncol=2)
+```
+
+The authors used SARIMA(0,d,q)(0,D,Q)[12] values which is based on the observations from the ACF Plot. From the ACF plot, spikes are observed in the order and 2 other seasonal spikes, hence **SARIMA(0,0,1)(0,0,2)[12]** model is included in the comparison.
+ 
+```{r include = FALSE}
+fit1 <- Arima(differenced_cases, order = c(0,0,1), seasonal = list(order = c(0,1,2), period = 12), include.mean = FALSE)
+fit1
+```
+
+The authors used SARIMA(p,d,0)(P,D,0)[12] values which is based on the observations from the PACF Plot. From our PACF plot, spikes are observed in the order and 2 other seasonal spikes, hence **SARIMA(0,0,1)(0,0,2)[12]** model is included in the comparison.
+
+```{r include = FALSE}
+fit2 <- Arima(differenced_cases, order = c(0,0,0), seasonal = list(order = c(2,1,0), period = 12), include.mean = FALSE)
+fit2
+```
+
+The authors also utilized the **auto.arima** function in determining the SARIMA model without the need to observe the ACF and PACF plots and directly determine the appropriate model for the data.
+
+```{r include = FALSE}
+fit3 <- auto.arima(differenced_cases)
+fit3
+```
+
+
+### Model Validation
+
+The best fit for ARIMA models provide the lowest AICc values. The table below shows the comparison of the AICc values of the models.
+
+```{r, fig.width=4, fig.height=1.5, echo=FALSE}
+AICC <- data.frame(NO. = 1:3, Model = c("SARIMA(0,0,1)(0,1,2)[12]","SARIMA(0,0,0)(2,1,0)[12]", "SARIMA(0,0,0)(1,0,0)[12]"), 
+                            AICc = c(69.55,67.44,73.07))
+kable(AICC, caption = "Comparing the AICc values of the 3 models", booktabs = T) %>%
+    kable_styling(latex_options = "hold_position") %>%
+    kable_styling(latex_options = "striped")
+```
+
+Comparing the AICc values of the 3 models, the lowest AICc shown yielded from the ***SARIMA(0,0,0)(2,1,0)[12]*** with the value of **67.44**, followed by the ***SARIMA(0,0,1)(0,1,2)[12]***. Before verifying the right model to use, the authors decided to verify the accuracy of the models.
+
+#### Accuracy Checking
+
+To accurately check the errors of the models, the authors decided to check for its accuracy focusing on the RMSE. The model who yields the smallest RMSE provides better prediction performs well compared to other models. The table shows the comparison of the values of RMSE of the models.
+
+```{r include = FALSE}
+accuracy(fit1)
+accuracy(fit2)
+accuracy(fit3)
+```
+```{r, fig.width=4, fig.height=1.5, echo=FALSE}
+AICC <- data.frame(NO. = 1:3, Model = c("SARIMA(0,0,1)(0,1,2)[12]","SARIMA(0,0,0)(2,1,0)[12]", "SARIMA(0,0,0)(1,0,0)[12]"), 
+                            RMSE = c(0.4007935,0.4044713,0.4215006))
+kable(AICC, caption = "Comparing the AICc values of the 3 models", booktabs = T) %>%
+    kable_styling(latex_options = "hold_position") %>%
+    kable_styling(latex_options = "striped")
+```
+
+Among the models, the first model **SARIMA(0,0,1)(0,1,2)[12]** yields the lowest RMSE value. Though it did not yield the lowest AICc among the other models, it yields the lowest RMSE, hence the authors decided to use this SARIMA model since the model with the lowest RMSE tends to forecast lesser errors.
+
+
+## RESULTS AND DISCUSSION
+
+### Forecasting the data
+```{r include = FALSE}
+modeldiff_cases = Arima(differenced_cases, order = c(0,0,1), seasonal = list(order = c(0,1,2), period = 12), include.mean = FALSE)
+forecast_values <- forecast(modeldiff_cases, h = 12)
+```
+```{r, fig.width=5, fig.height=3, fig.align='center', echo=FALSE}
+plot(forecast_values)
+```
+In forecasting the data, the authors used the chosen SARIMA model in predicting the future values in the next 12 months, from January 2021 to December 2021. From the forecast, we can observe seasonality until the end of the forecast in 2021. This implies that the forecast follows the same stationary seasonal activity with the previous logged data values. Hence, the model follows the same seasonal pattern as to the previous behavior of the logged data.
+
+
+## CONCLUSION
+
+Based on the forecasted graph and values, there is a clear seasonality in the data of dengue cases in the Region XI in Philippines. Dengue cases tend to peak during the rainy season, which typically occurs from June to November. The months with the highest number of dengue cases are often observed from June to October, corresponding to the period of increased rainfall and favorable breeding conditions for mosquitoes. The forecast also follows the same seasonality behavior with the logged data values. However, the forecast is unrealistic due to the negative values forecasted, hence other modeling approaches can be utilized in forecasting the data to be compared with this current approach, and possibly another approach that utilizes the original data to be compared in future studies.
+
+The results of this forecast hold relevance in several stakeholders to the study. ***Public health authorities*** are able to gain relevant information in anticipating dengue outbreak seasons and are able to control the situation. The ***general public*** are also able to understand the risks and act upon and eliminate the risks being posed by the infection. ***Researchers*** can also utilize the data in analyzing the behaviors and patterns and develop technologies, strategies, and interventions for prevention and control. Lastly, ***government and non-government officials*** can utilize the data in acting upon during outbreak seasons and establish policies, evidence-based decisions, and implementing efforts such as assistance to communities.
+
+The Philippines' rainy season normally lasts from June to November, with the heaviest rain between July and September. Heavy rainfall during these times create stagnant water that provides several mosquito breeding grounds. The Aedes aegypti mosquito, which spreads dengue, flourishes in these circumstances. The risk of mosquito breeding is further increased during the rainy season by practices for storing water, such as storing water in open containers. Water buildup in metropolitan areas and inadequate drainage systems make the situation worse. Floods brought on by prolonged rain can drive mosquitoes away and help dengue spread to other locations. 
+
+Proactive efforts like mosquito control programs, breeding site elimination, public awareness campaigns, and healthcare readiness are essential during the rainy season to limit the impact on dengue cases. These problems must be addressed. It is crucial to remember that these variables interact with one another, and a thorough comprehension of how they work together is required to effectively manage and control dengue in the region and the Philippines.
+
+
+### CODES, DATASET, AND REFERENCES
+
+The authors used RStudio in analyzing and forecasting the data. The codes are accessible through https://github.com/ookamiisamaa/Dengue-Cases-RegXI---RStudio
+
+The dataset for this study is accessible in Kaggle or the Department of Health through https://www.kaggle.com/datasets/vincentgupo/dengue-cases-in-the-philippines?resource=download
