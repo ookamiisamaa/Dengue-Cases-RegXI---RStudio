@@ -1,0 +1,75 @@
+#FORECASTING THE DENGUE CASES OF REGION XI - DAVAO REGION
+#Authors: Nathan Alviola, Glendale Arawiran, Marie Villanueva
+#Data from: https://www.kaggle.com/datasets/vincentgupo/dengue-cases-in-the-philippines?resource=download
+
+#Installation of packages used
+library(ggplot2)  
+library(stlplus)  
+library(forecast)
+library(urca)
+library(tseries)
+library(gridExtra)
+
+#Data Input
+data <- data.frame(
+  Dengue_Cases = c(790, 711, 564, 557, 628, 1015, 2330, 2063, 1010, 1035, 749, 685, 847, 479, 304, 253, 233, 241, 411, 316, 153, 58, 94, 278, 234, 205, 191, 223, 228, 477, 783, 876, 792, 609, 742, 956, 627, 841, 806, 339, 257, 584, 1115, 1284, 1141, 534, 437, 501, 220, 312, 352, 80, 70, 51, 126, 185, 146, 113, 154, 127)
+)
+dengue_cases <- ts(data$Dengue_Cases, start = 2016, frequency = 12)
+
+#Logarithmic manipulation and plotting of logged data
+dengue_caseslog <- log(dengue_cases)
+plot(dengue_caseslog, main = "Dengue Cases Time Series", xlab = "Time", ylab = "Dengue Cases")
+
+#Decomposing of data
+denglog_stl = stlplus(dengue_caseslog, s.window = "period") 
+plot(denglog_stl)
+
+#ADF test to determine stationary status
+adf_testlog <- adf.test(dengue_caseslog)
+print(adf_testlog)
+
+#Data differencing since data is non-stationary
+ndiffs(dengue_caseslog) #Verifying number of differencing
+differenced_cases <- diff(dengue_caseslog, differences = 1)
+
+#ADF test of differenced data
+adf_test_diff <- adf.test(differenced_cases)
+print(adf_test_diff)
+
+#Plot of differenced data (already stationary)
+plot(differenced_cases, main = "Dengue Cases Time Series", xlab = "Time", ylab = "Dengue Cases")
+
+#ACF and PACF plots to determine the (p,d,q) values of ARIMA
+acfplot1=ggAcf(differenced_cases) + ggtitle("ACF Plot")
+acfplot2=ggPacf(differenced_cases) + ggtitle("PACF Plot")
+grid.arrange(acfplot1,acfplot2,ncol=2)
+
+#Determining of appropriate SARIMA model
+#ARIMA(0,0,1)(0,0,2)[12]
+fit1 <- Arima(differenced_cases, order = c(0,0,1), seasonal = list(order = c(0,1,2), period = 12), include.mean = FALSE)
+fit1
+
+#ARIMA(0,0,0)(2,0,0)[12]
+fit2 <- Arima(differenced_cases, order = c(0,0,0), seasonal = list(order = c(2,1,0), period = 12), include.mean = FALSE)
+fit2
+
+#auto.arima
+fit3 <- auto.arima(differenced_cases)
+fit3
+
+#Checking of residuals of chosen model
+checkresiduals(fit3)
+
+#Checking of accuracy from the error
+accuracy(fit1)
+accuracy(fit2)
+accuracy(fit3)
+
+#Modeling of data 
+modeldiff_cases = Arima(differenced_cases, order = c(0,0,1), seasonal = list(order = c(0,1,2), period = 12), include.mean = FALSE)
+summary(modeldiff_cases)
+
+#Forecasted values
+forecast_values <- forecast(modeldiff_cases, h = 12)
+print(forecast_values)
+plot(forecast_values)
